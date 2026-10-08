@@ -1,5 +1,5 @@
    # Proyecto-DataControl-Avanzado
 
-   AppVersion-0
+   AppVersion-1 - 08/10/2026 19:34:48
 
 Añadida feature: feature/mi-feature
