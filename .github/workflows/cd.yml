@@ -1,0 +1,56 @@
+name: CD
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.README_TOKEN }}
+
+      - name: Subir la version en el README
+        run: |
+          ACTUAL=$(grep -o 'AppVersion-[0-9]*' README.md | head -n 1 | cut -d- -f2)
+          if [ -z "$ACTUAL" ]; then
+            echo "No se ha encontrado AppVersion en el README"
+            exit 1
+          fi
+          NUEVA=$((ACTUAL + 1))
+          FECHA=$(TZ=Europe/Madrid date '+%d/%m/%Y %H:%M:%S')
+          sed -i "s|AppVersion-[0-9]*.*|AppVersion-${NUEVA} - ${FECHA}|" README.md
+          echo "Version: $ACTUAL -> $NUEVA"
+          cat README.md
+
+      - name: Guardar el cambio en main
+        if: github.event_name != 'pull_request'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "Sube version del README [skip ci]"
+          git push
+
+  validate-prod:
+    needs: update-version
+    runs-on: self-hosted
+    steps:
+      - name: Comparar PROD_TOKEN con LOCAL_PROD_TOKEN
+        shell: powershell
+        env:
+          PROD_TOKEN: ${{ secrets.PROD_TOKEN }}
+        run: |
+          if ($env:PROD_TOKEN -eq $env:LOCAL_PROD_TOKEN) {
+              Write-Output "Los tokens coinciden"
+          } else {
+              Write-Output "Los tokens NO coinciden"
+              exit 1
+          }
