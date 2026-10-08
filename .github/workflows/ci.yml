@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.README_TOKEN }}
+
+      - name: Añadir la feature al README
+        env:
+          MENSAJE: ${{ github.event.head_commit.message }}
+          RAMA_EVENTO: ${{ github.head_ref || github.ref_name }}
+        run: |
+          RAMA=$(echo "$MENSAJE" | head -n 1 | sed -n 's|^Merge pull request #[0-9]* from [^/]*/||p')
+          if [ -z "$RAMA" ]; then
+            RAMA="$RAMA_EVENTO"
+          fi
+          printf '\nAñadida feature: %s\n' "$RAMA" >> README.md
+          cat README.md
+
+      - name: Guardar el cambio en develop
+        if: github.event_name != 'pull_request'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "Actualiza README [skip ci]"
+          git push
+
+  validate-dev:
+    needs: update-readme
+    runs-on: self-hosted
+    steps:
+      - name: Comparar DEV_TOKEN con LOCAL_DEV_TOKEN
+        shell: powershell
+        env:
+          DEV_TOKEN: ${{ secrets.DEV_TOKEN }}
+        run: |
+          if ($env:DEV_TOKEN -eq $env:LOCAL_DEV_TOKEN) {
+              Write-Output "Los tokens coinciden"
+          } else {
+              Write-Output "Los tokens NO coinciden"
+              exit 1
+          }
